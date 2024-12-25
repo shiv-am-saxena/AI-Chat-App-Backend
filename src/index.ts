@@ -1,4 +1,5 @@
-import 'dotenv/config.js';//.env file configuration
+import dotenv from 'dotenv';
+dotenv.config();//.env file configuration
 import http from 'http';
 import app from './app.js'; //server configuration
 import connectDb from './db/mongooseConnection.js';
