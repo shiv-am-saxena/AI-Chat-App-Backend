@@ -26,5 +26,25 @@ const createProject = asyncHandler(async (req: Request, res: Response) => {
 		.status(200)
 		.json(new apiResponse(200, project, 'Project has been created successfully'));
 });
-
-export { createProject };
+const fetchProjects = asyncHandler(async (req: Request, res: Response) => {
+	const userId = (req as any).user._id;
+	const projects = await Project.find({ users: [userId] });
+	if (!projects) {
+		throw new ApiError(500, 'Something went wrong while fetching your projects');
+	}
+	res
+		.status(200)
+		.json(new apiResponse(200, projects, 'Projects fetched successfully'));
+});
+const deleteProject = asyncHandler(async (req: Request, res: Response) => {
+	const projectId = req.params.id;
+	const userId = (req as any).user._id;
+	const projects = await Project.deleteOne({ _id: projectId, users: [userId] });
+	if (!projects) {
+		throw new ApiError(500, 'Something went wrong while deleting your project');
+	}
+	res
+		.status(200)
+		.json(new apiResponse(200, projects, 'Project deleted successfully'));
+});
+export { createProject, fetchProjects, deleteProject };
