@@ -12,6 +12,11 @@ const createProject = asyncHandler(async (req: Request, res: Response) => {
 	) {
 		throw new ApiError(400, 'All feilds are required');
 	} // checks if the user has provided the name of the project
+
+	const existingName = await Project.findOne({ projectName: name });
+	if (existingName) {
+		throw new ApiError(400, 'Project with same name already exists');
+	} //checks if the project already exist in the database
 	const project = await Project.create({ projectName: name, users: [userId] });
 
 	if (!project) {
