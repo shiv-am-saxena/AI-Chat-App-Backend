@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { apiResponse } from '../utils/apiResponse.js';
+import { User } from '../models/user.model.js';
 
 const createProject = asyncHandler(async (req: Request, res: Response) => {
 	const { name } = req.body;
@@ -28,7 +29,7 @@ const createProject = asyncHandler(async (req: Request, res: Response) => {
 });
 const fetchProjects = asyncHandler(async (req: Request, res: Response) => {
 	const userId = (req as any).user._id;
-	const projects = await Project.find({ users: [userId] });
+	const projects = await Project.find({ users: { $in: userId } })
 	if (!projects) {
 		throw new ApiError(500, 'Something went wrong while fetching your projects');
 	}
@@ -39,7 +40,7 @@ const fetchProjects = asyncHandler(async (req: Request, res: Response) => {
 const deleteProject = asyncHandler(async (req: Request, res: Response) => {
 	const projectId = req.params.id;
 	const userId = (req as any).user._id;
-	const projects = await Project.deleteOne({ _id: projectId, users: [userId] });
+	const projects = await Project.deleteOne({ _id: projectId, users: { $in: userId }  });
 	if (!projects) {
 		throw new ApiError(500, 'Something went wrong while deleting your project');
 	}
@@ -47,4 +48,27 @@ const deleteProject = asyncHandler(async (req: Request, res: Response) => {
 		.status(200)
 		.json(new apiResponse(200, projects, 'Project deleted successfully'));
 });
-export { createProject, fetchProjects, deleteProject };
+const addUser = asyncHandler(async (req: Request, res: Response) => {
+	const { email, pid } = req.body;
+	if (
+		[email, pid].some(
+			(feild) => feild?.trim() === '' || typeof feild === 'undefined'
+		)
+	) {
+		throw new ApiError(400, 'All feilds are required');
+	}
+	const newUser = await User.findOne({ email });
+	if (!newUser) {
+		throw new ApiError(400, 'User Not Found');
+	}
+	const project = await Project.findByIdAndUpdate(
+		{ _id: pid },
+		{ $push: { users: newUser._id } },
+		{ new: true, runValidators: true }
+	);
+	if (!project) {
+		throw new ApiError(500, 'Error while adding user to the project');
+	}
+	res.status(200).json(new apiResponse(200, project, 'User added'));
+});
+export { createProject, fetchProjects, deleteProject, addUser };

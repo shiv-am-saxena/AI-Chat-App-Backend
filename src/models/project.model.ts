@@ -13,10 +13,10 @@ const projectSchema = new Schema<IProject>({
 		trim: true,
 		unique: [true, 'Project name must be unique']
 	},
-	users: {
+	users: [{
 		type: mongoose.Schema.Types.ObjectId,
 		ref: 'user'
-	}
+	}]
 });
 
 // Export the Project model
