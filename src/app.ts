@@ -19,10 +19,12 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-app.get('/',isLoggedin, (req: Request, res: Response) => {
+app.get('/', (req: Request, res: Response) => {
+	res.status(200);
+});
+app.get('/temp', isLoggedin, (req: Request, res: Response) => {
 	const user = (req as any).user;
-	res.status(200).json(new apiResponse(200, user, "Success"));
+	res.status(200).json(new apiResponse(200, user, 'Success'));
 });
 app.use('/auth', authRouter);
 app.use('/project', projectRouter);

@@ -48,7 +48,8 @@ userSchema.methods.isValidPassword = async function (
 ): Promise<boolean> {
 	return await bcrypt.compare(password, this.password);
 };
-//Generate JWT Token
+
+// Generate JWT Token
 userSchema.methods.genJWT = function (): string {
 	return jwt.sign(
 		{ id: this._id, email: this.email },
