@@ -44,9 +44,9 @@ const createProject = asyncHandler(async (req: Request, res: Response) => {
 // Fetch Projects
 const fetchProjects = asyncHandler(async (req: Request, res: Response) => {
 	const userId = (req as any).user._id;
-	const projects = await Project.find({ users: { $in: userId } }).populate(
-		'users'
-	);
+	const projects = await Project.find({ users: { $in: userId } })
+		.populate('users')
+		.select('-password');
 	if (!projects) {
 		throw new ApiError(500, 'Something went wrong while fetching your projects');
 	}

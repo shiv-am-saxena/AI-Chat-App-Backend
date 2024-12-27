@@ -1,4 +1,6 @@
+//project model
 import mongoose, { Schema, Document, ObjectId } from 'mongoose';
+import { Chat } from './chat.model.js';
 
 // Define an interface for the User subdocument
 interface UserRef {
@@ -9,6 +11,7 @@ interface UserRef {
 
 // Define an interface for the Project document
 export interface IProject extends Document {
+	_id: ObjectId;
 	projectName: string;
 	users: UserRef[];
 }
@@ -27,6 +30,10 @@ const projectSchema = new Schema<IProject>({
 			ref: 'User'
 		}
 	]
+});
+// Use post middleware to create a chat after a project is saved
+projectSchema.post('save', async function (doc) {
+	await Chat.create({ pid: doc._id });
 });
 
 // Export the Project model

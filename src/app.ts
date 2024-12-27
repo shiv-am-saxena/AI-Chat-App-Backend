@@ -6,6 +6,7 @@ import authRouter from './routes/auth.route.js';
 import { isLoggedin } from './middlewares/isLoggedin.middleware.js';
 import { apiResponse } from './utils/apiResponse.js';
 import projectRouter from './routes/project.route.js';
+import chatRouter from './routes/chats.route.js';
 const app = express();
 app.use(morgan('dev'));
 app.use(
@@ -28,5 +29,5 @@ app.get('/temp', isLoggedin, (req: Request, res: Response) => {
 });
 app.use('/auth', authRouter);
 app.use('/project', projectRouter);
-
+app.use('/chat', chatRouter);
 export default app;
