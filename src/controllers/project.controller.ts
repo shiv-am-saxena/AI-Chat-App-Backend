@@ -13,7 +13,7 @@ import { IProject } from '../models/project.model';
 // Create Project
 const createProject = asyncHandler(async (req: Request, res: Response) => {
 	const { name } = req.body;
-	const email = (req as any).user.email;
+	const userId = (req as any).user._id;
 
 	// Validate fields
 	if (
@@ -28,12 +28,8 @@ const createProject = asyncHandler(async (req: Request, res: Response) => {
 		throw new ApiError(400, 'Project with the same name already exists');
 	}
 
-	// Find the user by email
-	const user = (await User.findOne({ email })) as IUser;
-	const userId = user?._id;
-
 	// Create a new project
-	const project = (await Project.create({ projectName: name, users: [userId] }));
+	const project = await Project.create({ projectName: name, users: [userId] });
 
 	if (!project) {
 		throw new ApiError(500, 'Something went wrong while creating the project');
@@ -48,7 +44,9 @@ const createProject = asyncHandler(async (req: Request, res: Response) => {
 // Fetch Projects
 const fetchProjects = asyncHandler(async (req: Request, res: Response) => {
 	const userId = (req as any).user._id;
-	const projects = await Project.find({ users: { $in: userId } }).populate('users');
+	const projects = await Project.find({ users: { $in: userId } }).populate(
+		'users'
+	);
 	if (!projects) {
 		throw new ApiError(500, 'Something went wrong while fetching your projects');
 	}
@@ -75,27 +73,40 @@ const deleteProject = asyncHandler(async (req: Request, res: Response) => {
 
 // Add User to Project
 const addUser = asyncHandler(async (req: Request, res: Response) => {
-	const { email, pid } = req.body;
+	const { id, pid } = req.body;
+
 	if (
-		[email, pid].some(
-			(field) => field?.trim() === '' || typeof field === 'undefined'
-		)
+		!Array.isArray(id) ||
+		id.length === 0 ||
+		typeof pid === 'undefined' ||
+		pid.trim() === ''
 	) {
-		throw new ApiError(400, 'All fields are required');
+		throw new ApiError(
+			400,
+			'Invalid input: ID must be a non-empty array and PID is required'
+		);
 	}
-	const newUser = await User.findOne({ email });
-	if (!newUser) {
-		throw new ApiError(400, 'User Not Found');
+
+	// Validate each ID in the array
+	const validUsers = await User.find({ _id: { $in: id } });
+	if (validUsers.length !== id.length) {
+		throw new ApiError(400, 'One or more User IDs are invalid');
 	}
+
+	// Update the project with the valid IDs
 	const project = await Project.findByIdAndUpdate(
 		pid,
-		{ $push: { users: newUser._id } },
+		{ $addToSet: { users: { $each: id } } },
 		{ new: true, runValidators: true }
 	);
+
 	if (!project) {
-		throw new ApiError(500, 'Error while adding user to the project');
+		throw new ApiError(500, 'Error while adding users to the project');
 	}
-	res.status(200).json(new apiResponse(200, project, 'User added'));
+
+	res
+		.status(200)
+		.json(new apiResponse(200, project, 'Users added successfully'));
 });
 
 // Get Project by ID

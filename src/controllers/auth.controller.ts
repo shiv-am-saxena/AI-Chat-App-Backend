@@ -103,4 +103,16 @@ const logout = asyncHandler(async (req: Request, res: Response) => {
 		.clearCookie('authToken')
 		.json(new apiResponse(200, 'Logged out successfully'));
 });
-export { createUser, loginUser, profile, logout };
+const allUsers = asyncHandler(async (req: Request, res: Response) => {
+	const id = (req as any).user._id;
+
+	if(!id){
+		throw new ApiError(400, 'Invalid User');
+	}
+	const allUser = await User.find({ _id: {$ne: id}});
+	if(!allUser){
+		throw new ApiError(500, 'Failed to fetch all users');
+	}
+	res.status(200).json(new apiResponse(200, allUser, 'Fetched all users successfully'));
+});
+export { createUser, loginUser, profile, logout, allUsers };
