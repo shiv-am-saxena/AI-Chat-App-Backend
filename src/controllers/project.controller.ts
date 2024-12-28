@@ -5,10 +5,9 @@ import { ApiError } from '../utils/ApiError.js';
 import { apiResponse } from '../utils/apiResponse.js';
 import { User } from '../models/user.model.js';
 import mongoose from 'mongoose';
+import { Chat } from '../models/chat.model.js';
 
 // Ensure the interfaces are properly imported and used
-import { IUser } from '../models/user.model';
-import { IProject } from '../models/project.model';
 
 // Create Project
 const createProject = asyncHandler(async (req: Request, res: Response) => {
@@ -63,8 +62,12 @@ const deleteProject = asyncHandler(async (req: Request, res: Response) => {
 		_id: projectId,
 		users: { $in: userId }
 	});
+	const chat = await Chat.deleteOne({ pid: projectId });
 	if (!projects) {
 		throw new ApiError(500, 'Something went wrong while deleting your project');
+	}
+	if (!chat) {
+		throw new ApiError(500, 'Someting went wrong, Failed to delete chats.');
 	}
 	res
 		.status(200)
