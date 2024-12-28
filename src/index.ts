@@ -26,9 +26,9 @@ const port = process.env.PORT || 8080;
 const server = http.createServer(app);
 const io = new Server(server, {
 	cors: {
-		origin: "http://localhost:5173",
+		origin: "*",
 		// credentials: true,
-		methods: ['GET', 'POST'],
+		// methods: ['GET', 'POST'],
 		// allowedHeaders: ['Content-Type', 'Authorization']
 	}
 });
