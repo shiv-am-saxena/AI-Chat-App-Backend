@@ -26,7 +26,7 @@ const port = process.env.PORT || 8080;
 const server = http.createServer(app);
 const io = new Server(server, {
 	cors: {
-		origin: ['https://adhyay-lime.vercel.app', 'http://localhost:5173'],
+		origin: process.env.CORS_ORIGIN,
 		methods: ['GET', 'POST']
 	}
 });
