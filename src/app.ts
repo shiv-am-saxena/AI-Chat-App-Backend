@@ -10,7 +10,7 @@ import chatRouter from './routes/chats.route.js';
 const app = express();
 app.use(morgan('dev'));
 app.use(
-	cors({})
+	cors()
 );
 app.use(cookieParser());
 app.use(express.json());
