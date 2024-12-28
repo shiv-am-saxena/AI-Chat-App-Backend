@@ -26,11 +26,10 @@ const port = process.env.PORT || 8080;
 const server = http.createServer(app);
 const io = new Server(server, {
 	cors: {
-		origin: "*",
-		// credentials: true,
-		// methods: ['GET', 'POST'],
-		// allowedHeaders: ['Content-Type', 'Authorization']
-	}
+		origin: true,
+		credentials: true,
+	  },
+	  allowEIO3: true,
 });
 
 // Helper Functions
