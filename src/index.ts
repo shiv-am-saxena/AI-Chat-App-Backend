@@ -21,15 +21,13 @@ declare module 'socket.io' {
 }
 
 const port = process.env.PORT || 8080;
-
+//
 // Initialize HTTP and Socket.IO servers
 const server = http.createServer(app);
 const io = new Server(server, {
 	cors: {
-		origin: true,
-		credentials: true,
-	  },
-	  allowEIO3: true,
+		origin: '*'
+	},
 });
 
 // Helper Functions
