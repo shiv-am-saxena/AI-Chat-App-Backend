@@ -1,18 +1,18 @@
-import 'dotenv/config.js'; //.env file configuration
+import 'dotenv/config.js';
 import http from 'http';
-import app from './app.js'; //server configuration
+import app from './app.js'; // Server configuration
 import connectDb from './db/mongooseConnection.js';
 import errorHandler from './middlewares/errorHandler.js';
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
-import { jwtPayload } from './types/jwtPayload.js';
-import { ApiError } from './utils/ApiError.js';
-import { User } from './models/user.model.js';
 import mongoose from 'mongoose';
+import { User } from './models/user.model.js';
 import { IProject, Project } from './models/project.model.js';
 import { Chat } from './models/chat.model.js';
+import { jwtPayload } from './types/jwtPayload.js';
+import { ApiError } from './utils/ApiError.js';
 
-// Extend the Socket.io module to include a user property
+// Extend the Socket.IO module to include custom properties
 declare module 'socket.io' {
 	interface Socket {
 		user?: jwtPayload;
@@ -20,47 +20,10 @@ declare module 'socket.io' {
 	}
 }
 
-const server = http.createServer(app); //server creation
 const port = process.env.PORT || 8080;
-const authenticateSocket = async (
-	socket: Socket,
-	next: (err?: Error) => void
-) => {
-	try {
-		const token =
-			socket.handshake.auth?.token ||
-			socket.handshake.headers.authorization?.split(' ')[1];
 
-		if (!token) {
-			return next(new ApiError(401, 'Authentication error: Token not provided'));
-		}
-		const projectId = socket.handshake.query.projectId;
-		console.log(projectId);
-		if (!projectId) {
-			throw next(new ApiError(400, 'Project ID not found'));
-		}
-		if (!mongoose.Types.ObjectId.isValid(projectId as string)) {
-			throw next(new ApiError(400, 'Invalid Project ID'));
-		}
-		const project = await Project.findById({ _id: projectId });
-		if (!project) {
-			return next(new ApiError(400, 'Project not found'));
-		}
-		const { id } = jwt.verify(
-			token,
-			`${process.env.ACCESS_TOKEN_SECRET}`
-		) as jwtPayload;
-		const user = await User.findById({ _id: id }).select('-password');
-		if (!user) {
-			return next(new ApiError(400, 'Authentication error: User not found'));
-		}
-		socket.project = project;
-		socket.user = { id: user.id, email: user.email };
-		next();
-	} catch (err) {
-		return next(new ApiError(400, 'Authentication error: Invalid token'));
-	}
-};
+// Initialize HTTP and Socket.IO servers
+const server = http.createServer(app);
 const io = new Server(server, {
 	cors: {
 		origin: ['https://adhyay-lime.vercel.app', 'http://localhost:5173'],
@@ -68,51 +31,104 @@ const io = new Server(server, {
 	}
 });
 
-// Use the authentication middleware
-io.use(authenticateSocket);
+// Helper Functions
 const populateUser = async (id: string) => {
-	if (!id) {
+	try {
+		const user = await User.findById(id);
+		return user ? user.email : '@ai';
+	} catch (error) {
+		console.error(`Error fetching user with ID ${id}:`, error);
 		return '@ai';
 	}
-	const user = await User.findOne({ _id: id });
-	return user?.email;
 };
-// Socket connection
+
+// Authentication Middleware
+const authenticateSocket = async (
+	socket: Socket,
+	next: (err?: Error) => void
+) => {
+	try {
+		// Extract token
+		const token =
+			socket.handshake.auth?.token ||
+			socket.handshake.headers.authorization?.split(' ')[1];
+
+		if (!token)
+			throw new ApiError(401, 'Authentication error: Token not provided');
+
+		// Validate project ID
+		const projectId = socket.handshake.query.projectId as string;
+		if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
+			throw new ApiError(400, 'Invalid or missing Project ID');
+		}
+
+		// Verify project and user
+		const project = await Project.findById(projectId);
+		if (!project) throw new ApiError(404, 'Project not found');
+
+		const decoded = jwt.verify(
+			token,
+			process.env.ACCESS_TOKEN_SECRET!
+		) as jwtPayload;
+		const user = await User.findById(decoded.id).select('-password');
+		if (!user) throw new ApiError(404, 'User not found');
+
+		// Attach user and project to socket
+		socket.project = project;
+		socket.user = { id: user.id, email: user.email };
+		next();
+	} catch (error) {
+		console.error('Socket authentication error:', error);
+		next(new ApiError(401, 'Authentication failed'));
+	}
+};
+
+// Apply Authentication Middleware
+io.use(authenticateSocket);
+
+// Socket.IO Event Handlers
 io.on('connection', (socket: Socket) => {
-	console.log('A user connected:', socket.user);
-	const id = socket.project._id.toString();
-	socket.join(id);
+	console.log('User connected:', socket.user?.email);
+
+	// Join project room
+	const projectId = socket.project._id.toString();
+	if (projectId) socket.join(projectId);
+
+	// Handle project messages
 	socket.on('project-message', async (data) => {
-		const msgData = {
-			message: data.message,
-			sender: data.sender,
-			email: await populateUser(data.sender)
-		};
-	
-		// Push msgData into the chats array of the corresponding chat document
-		await Chat.updateOne(
-			{ pid: id },
-			{ $push: { chats: msgData } }
-		);
-	
-		// Broadcast the message to other users in the project room
-		socket.broadcast.to(id).emit('project-message', msgData);
+		try {
+			const msgData = {
+				message: data.message,
+				sender: data.sender,
+				email: await populateUser(data.sender)
+			};
+
+			// Add message to database
+			await Chat.updateOne({ pid: projectId }, { $push: { chats: msgData } });
+
+			// Broadcast message to other users in the room
+			socket.broadcast.to(projectId).emit('project-message', msgData);
+		} catch (error) {
+			console.error('Error handling project-message:', error);
+			socket.emit('error', 'Message delivery failed');
+		}
 	});
 
+	// Handle disconnect
 	socket.on('disconnect', () => {
-		console.log('A user disconnected:', socket.user);
+		console.log('User disconnected:', socket.user?.email);
 	});
 });
 
-// Database connection
+// Start Server
 connectDb()
 	.then(() => {
 		server.listen(port, () => {
-			console.log(`Server is running at port ${port}`);
+			console.log(`Server running on port ${port}`);
 		});
 	})
 	.catch((err: Error) => {
-		console.log(`Connection to the database failed due to ${err}`);
+		console.error('Database connection failed:', err);
 	});
 
 app.use(errorHandler);
