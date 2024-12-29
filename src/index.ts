@@ -28,7 +28,7 @@ const port = process.env.PORT || 8080;
 const server = http.createServer(app);
 const io = new Server(server, {
 	cors: {
-		origin: process.env.CORS_ORIGIN || '*', // Use CLIENT_URL from .env if available
+		origin: ['https://ai-chat-app-backend-eight.vercel.app', 'http://localhost:5173', 'http://127.0.0.1:5173'], // Use CLIENT_URL from .env if available
 		methods: ['GET', 'POST'],
 		credentials: true
 	}
