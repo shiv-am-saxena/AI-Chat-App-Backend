@@ -100,7 +100,7 @@ io.on('connection', (socket: BaseSocket) => {
 				};
 
 				await Chat.updateOne({ pid: projectId }, { $push: { chats: msgData } });
-				io.to(projectId!.toString()).emit('project-message', msgData);
+				socket.broadcast.to(projectId!.toString()).emit('project-message', msgData);
 			} catch (error) {
 				console.error('Error handling project-message:', error);
 				socket.emit('error', 'Message delivery failed');
