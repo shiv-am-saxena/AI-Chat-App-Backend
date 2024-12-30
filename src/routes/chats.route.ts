@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { fetchChat } from '../controllers/chat.controller.js';
+import { fetchChat, getAiRes } from '../controllers/chat.controller.js';
 import { isLoggedin } from '../middlewares/isLoggedin.middleware.js';
 
 const chatRouter = Router();
 
-chatRouter.route('/:pid').get(isLoggedin, fetchChat);
+chatRouter.route('/get/:pid').get(isLoggedin, fetchChat);
+chatRouter.route('/gen-ai').get(getAiRes);
 export default chatRouter;

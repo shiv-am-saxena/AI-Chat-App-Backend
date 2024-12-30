@@ -10,10 +10,11 @@ import { User } from './models/user.model.js';
 import { IProject, Project } from './models/project.model.js';
 import { Chat } from './models/chat.model.js';
 import { ApiError } from './utils/ApiError.js';
-
-// Extend the Socket.IO module to include custom properties
 import type { Socket as BaseSocket } from 'socket.io';
 import { jwtPayload } from './types/jwtPayload.js';
+import flashResult from './services/gemini.service.js';
+import getCompletion from './services/openai.service.js';
+import proResult from './services/pro.service.js';
 
 declare module 'socket.io' {
 	interface Socket {
@@ -28,7 +29,7 @@ const port = process.env.PORT || 8080;
 const server = http.createServer(app);
 const io = new Server(server, {
 	cors: {
-		origin: '*',
+		origin: '*'
 	}
 });
 
@@ -91,16 +92,51 @@ io.on('connection', (socket: BaseSocket) => {
 
 	socket.on(
 		'project-message',
-		async (data: { message: string; sender: string }) => {
+		async (incomingMessage: { message: string; sender: string }) => {
 			try {
 				const msgData = {
-					message: data.message,
-					sender: data.sender,
-					email: await populateUser(data.sender)
+					message: incomingMessage.message,
+					sender: incomingMessage.sender,
+					email: await populateUser(incomingMessage.sender)
 				};
-
 				await Chat.updateOne({ pid: projectId }, { $push: { chats: msgData } });
+				const containAI = incomingMessage.message.includes('@gemini');
+				const containGPT = incomingMessage.message.includes('@gpt');
+				const containPRO = incomingMessage.message.includes('@pro');
 				socket.broadcast.to(projectId!.toString()).emit('project-message', msgData);
+				if (containAI) {
+					const prompt = incomingMessage.message.replace('@gemini', '');
+					const result = await flashResult(prompt);
+					const data = {
+						message: result,
+						sender: '_ai',
+						email: 'Gemini 1.5 Flash'
+					};
+					await Chat.updateOne({ pid: projectId }, { $push: { chats: data } });
+					io.to(projectId!.toString()).emit('project-message', data);
+				}
+				if (containGPT) {
+					const prompt = incomingMessage.message.replace('@gpt', '');
+					const result = await getCompletion(prompt);
+					const data = {
+						message: result,
+						sender: '_ai',
+						email: 'GPT 4o-mini'
+					};
+					await Chat.updateOne({ pid: projectId }, { $push: { chats: data } });
+					io.to(projectId!.toString()).emit('project-message', data);
+				}
+				if (containPRO) {
+					const prompt = incomingMessage.message.replace('@pro', '');
+					const result = await proResult(prompt);
+					const data = {
+						message: result,
+						sender: '_ai',
+						email: 'Gemini 1.5 PRO'
+					};
+					await Chat.updateOne({ pid: projectId }, { $push: { chats: data } });
+					io.to(projectId!.toString()).emit('project-message', data);
+				}
 			} catch (error) {
 				console.error('Error handling project-message:', error);
 				socket.emit('error', 'Message delivery failed');
