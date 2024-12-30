@@ -14,7 +14,7 @@ const app = express();
 app.use(morgan('dev'));
 app.use(
 	cors({
-		origin: ['https://adhyay-lime.vercel.app', 'http://localhost:5173', 'http://127.0.0.1:5173'], // Fallback to wildcard if not defined
+		origin: ['https://adhyay-lime.vercel.app', 'http://localhost:5173', 'http://127.0.0.1:5173'], 
 		credentials: true,
 		methods: ['GET', 'POST', 'PUT', 'DELETE'],
 		allowedHeaders: ['Content-Type', 'Authorization']
