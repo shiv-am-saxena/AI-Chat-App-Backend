@@ -6,21 +6,34 @@ import errorHandler from './middlewares/errorHandler.js';
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
-import { User } from './models/user.model.js';
+import { IUser, User } from './models/user.model.js';
 import { IProject, Project } from './models/project.model.js';
 import { Chat } from './models/chat.model.js';
 import { ApiError } from './utils/ApiError.js';
-import type { Socket as BaseSocket } from 'socket.io';
+import type { Socket } from 'socket.io';
 import { jwtPayload } from './types/jwtPayload.js';
-import flashResult from './services/gemini.service.js';
-import getCompletion from './services/openai.service.js';
-import proResult from './services/pro.service.js';
 
 declare module 'socket.io' {
 	interface Socket {
-		user?: jwtPayload;
-		project: IProject;
+		project?: IProject;
+		user?: IUser;
 	}
+}
+import flashResult from './services/gemini.service.js';
+import getCompletion from './services/openai.service.js';
+import proResult from './services/pro.service.js';
+import winston from 'winston';
+
+// Logger configuration
+const logger = winston.createLogger({
+	level: 'info',
+	format: winston.format.json(),
+	transports: [new winston.transports.Console()]
+});
+
+// Validate environment variables
+if (!process.env.ACCESS_TOKEN_SECRET) {
+	throw new ApiError(500, 'ACCESS_TOKEN_SECRET not set');
 }
 
 const port = process.env.PORT || 8080;
@@ -39,14 +52,37 @@ const populateUser = async (id: string): Promise<string> => {
 		const user = await User.findById(id);
 		return user ? user.email : '@ai';
 	} catch (error) {
-		console.error(`Error fetching user with ID ${id}:`, error);
+		logger.error(`Error fetching user with ID ${id}:`, error);
 		return '@ai';
 	}
 };
 
+const handleAIResponse = async (
+	tag: '@gemini' | '@gpt' | '@pro',
+	prompt: string,
+	projectId: mongoose.Types.ObjectId,
+	sender: string,
+	io: Server
+) => {
+	const services = {
+		'@gemini': { service: flashResult, email: 'Gemini 1.5 Flash' },
+		'@gpt': { service: getCompletion, email: 'GPT 4o-mini' },
+		'@pro': { service: proResult, email: 'Gemini 1.5 PRO' }
+	};
+
+	try {
+		const { service, email: aiEmail } = services[tag];
+		const result = await service(prompt);
+		const data = { message: result, sender: '_ai', email: aiEmail };
+		await Chat.updateOne({ pid: projectId }, { $push: { chats: data } });
+		io.to(projectId.toString()).emit('project-message', data);
+	} catch (error) {
+		throw new ApiError(500, `Error handling AI response for tag ${tag}: ${error}`);
+	}
+};
 // Authentication Middleware
 const authenticateSocket = async (
-	socket: BaseSocket,
+	socket: Socket,
 	next: (err?: Error) => void
 ): Promise<void> => {
 	try {
@@ -66,26 +102,29 @@ const authenticateSocket = async (
 		if (!project) throw new ApiError(404, 'Project not found');
 
 		const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET!);
-		const user = await User.findById((decoded as { id: string }).id).select(
+		const user = await User.findById((decoded as jwtPayload).id).select(
 			'-password'
 		);
 		if (!user) throw new ApiError(404, 'User not found');
 
 		socket.project = project;
-		socket.user = { id: user.id, email: user.email };
+		socket.user = user;
 		next();
 	} catch (error) {
-		console.error('Socket authentication error:', error);
-		next(new Error('Authentication failed'));
+		logger.error('Socket authentication error:', error);
+		const message =
+			process.env.NODE_ENV === 'production'
+				? 'Authentication failed'
+				: (error as Error).message;
+		next(new Error(message));
 	}
 };
-
 // Apply Authentication Middleware
 io.use(authenticateSocket);
 
 // Socket.IO Event Handlers
-io.on('connection', (socket: BaseSocket) => {
-	console.log('User connected:', socket.user?.email);
+io.on('connection', (socket) => {
+	logger.info('User connected:', { email: socket.user?.email });
 
 	const projectId = socket.project?._id;
 	if (projectId) socket.join(projectId.toString());
@@ -100,52 +139,32 @@ io.on('connection', (socket: BaseSocket) => {
 					email: await populateUser(incomingMessage.sender)
 				};
 				await Chat.updateOne({ pid: projectId }, { $push: { chats: msgData } });
-				const containAI = incomingMessage.message.includes('@gemini');
-				const containGPT = incomingMessage.message.includes('@gpt');
-				const containPRO = incomingMessage.message.includes('@pro');
 				socket.broadcast.to(projectId!.toString()).emit('project-message', msgData);
-				if (containAI) {
-					const prompt = incomingMessage.message.replace('@gemini', '');
-					const result = await flashResult(prompt);
-					const data = {
-						message: result,
-						sender: '_ai',
-						email: 'Gemini 1.5 Flash'
-					};
-					await Chat.updateOne({ pid: projectId }, { $push: { chats: data } });
-					io.to(projectId!.toString()).emit('project-message', data);
-				}
-				if (containGPT) {
-					const prompt = incomingMessage.message.replace('@gpt', '');
-					const result = await getCompletion(prompt);
-					const data = {
-						message: result,
-						sender: '_ai',
-						email: 'GPT 4o-mini'
-					};
-					await Chat.updateOne({ pid: projectId }, { $push: { chats: data } });
-					io.to(projectId!.toString()).emit('project-message', data);
-				}
-				if (containPRO) {
-					const prompt = incomingMessage.message.replace('@pro', '');
-					const result = await proResult(prompt);
-					const data = {
-						message: result,
-						sender: '_ai',
-						email: 'Gemini 1.5 PRO'
-					};
-					await Chat.updateOne({ pid: projectId }, { $push: { chats: data } });
-					io.to(projectId!.toString()).emit('project-message', data);
+
+				const tags = ['@gemini', '@gpt', '@pro'];
+				for (const tag of tags) {
+					if (incomingMessage.message.includes(tag)) {
+						await handleAIResponse(
+							tag as '@gemini' | '@gpt' | '@pro',
+							incomingMessage.message.replace(tag, ''),
+							projectId as unknown as mongoose.Types.ObjectId,
+							incomingMessage.sender,
+							io
+						);
+					}
 				}
 			} catch (error) {
-				console.error('Error handling project-message:', error);
+				logger.error('Error handling project-message:', error);
 				socket.emit('error', 'Message delivery failed');
 			}
 		}
 	);
 
 	socket.on('disconnect', (reason: string) => {
-		console.log('User disconnected:', socket.user?.email, 'Reason:', reason);
+		logger.info('User disconnected:', {
+			email: socket.user?.email,
+			reason
+		});
 	});
 });
 
@@ -157,7 +176,17 @@ connectDb()
 		});
 	})
 	.catch((err: Error) => {
-		console.error('Database connection failed:', err);
+		console.log('Database connection failed:', err);
 	});
 
 app.use(errorHandler);
+
+// Graceful Shutdown
+process.on('SIGINT', async () => {
+	logger.info('Gracefully shutting down...');
+	await mongoose.disconnect();
+	server.close(() => {
+		logger.info('Server closed');
+		process.exit(0);
+	});
+});
