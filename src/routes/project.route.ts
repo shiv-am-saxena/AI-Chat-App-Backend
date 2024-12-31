@@ -6,13 +6,13 @@ import {
 	addUser,
 	getProjectById
 } from '../controllers/project.controller.js';
-import { isLoggedin } from '../middlewares/isLoggedin.middleware.js';
+import { isLoggedIn } from '../middlewares/isLoggedin.middleware.js';
 
 const projectRouter = Router();
 
-projectRouter.route('/all').get(isLoggedin, fetchProjects);
-projectRouter.route('/create').post(isLoggedin, createProject);
-projectRouter.route('/delete/:id').delete(isLoggedin, deleteProject);
-projectRouter.route('/addUser').put(isLoggedin, addUser);
-projectRouter.route('/:id').get(isLoggedin, getProjectById);
+projectRouter.route('/all').get(isLoggedIn, fetchProjects);
+projectRouter.route('/create').post(isLoggedIn, createProject);
+projectRouter.route('/delete/:id').delete(isLoggedIn, deleteProject);
+projectRouter.route('/addUser').put(isLoggedIn, addUser);
+projectRouter.route('/:id').get(isLoggedIn, getProjectById);
 export default projectRouter;

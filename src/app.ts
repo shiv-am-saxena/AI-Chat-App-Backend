@@ -3,7 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import authRouter from './routes/auth.route.js';
-import { isLoggedin } from './middlewares/isLoggedin.middleware.js';
+import { isLoggedIn } from './middlewares/isLoggedin.middleware.js';
 import { apiResponse } from './utils/apiResponse.js';
 import projectRouter from './routes/project.route.js';
 import chatRouter from './routes/chats.route.js';
@@ -30,7 +30,7 @@ app.get('/', (_req: Request, res: Response) => {
 });
 
 // Temporary endpoint for testing authentication
-app.get('/temp', isLoggedin, (req: Request, res: Response) => {
+app.get('/temp', isLoggedIn, (req: Request, res: Response) => {
 	const user = (req as any).user;
 	res.status(200).json(new apiResponse(200, user, 'Success'));
 });
