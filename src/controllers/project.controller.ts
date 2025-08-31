@@ -11,8 +11,8 @@ import { Chat } from '../models/chat.model.js';
 
 // Create Project
 const createProject = asyncHandler(async (req: Request, res: Response) => {
-	const { name } = req.body;
-	const userId = (req as any).user._id;
+	const { name, description, userId } = req.body;
+	// const userId = (req as any).user._id;
 
 	// Validate fields
 	if (
@@ -26,9 +26,17 @@ const createProject = asyncHandler(async (req: Request, res: Response) => {
 	if (existingName) {
 		throw new ApiError(400, 'Project with the same name already exists');
 	}
-
+	console.log({
+		name,
+		description,
+		userId
+	});
 	// Create a new project
-	const project = await Project.create({ projectName: name, users: [userId] });
+	const project = await Project.create({
+		projectName: name,
+		description,
+		users: [userId]
+	});
 
 	if (!project) {
 		throw new ApiError(500, 'Something went wrong while creating the project');
@@ -76,11 +84,10 @@ const deleteProject = asyncHandler(async (req: Request, res: Response) => {
 
 // Add User to Project
 const addUser = asyncHandler(async (req: Request, res: Response) => {
-	const { id, pid } = req.body;
+	const { email, pid } = req.body;
 
 	if (
-		!Array.isArray(id) ||
-		id.length === 0 ||
+		typeof email === 'undefined' ||
 		typeof pid === 'undefined' ||
 		pid.trim() === ''
 	) {
@@ -91,15 +98,15 @@ const addUser = asyncHandler(async (req: Request, res: Response) => {
 	}
 
 	// Validate each ID in the array
-	const validUsers = await User.find({ _id: { $in: id } });
-	if (validUsers.length !== id.length) {
-		throw new ApiError(400, 'One or more User IDs are invalid');
+	const isUserValid = await User.findOne({ email: email.trim() });
+	if (!isUserValid) {
+		throw new ApiError(400, `User with email ${email} does not exist`);
 	}
 
 	// Update the project with the valid IDs
 	const project = await Project.findByIdAndUpdate(
 		pid,
-		{ $addToSet: { users: { $each: id } } },
+		{ $addToSet: { users: { $each: [isUserValid._id] } } },
 		{ new: true, runValidators: true }
 	);
 

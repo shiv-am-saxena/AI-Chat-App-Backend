@@ -13,6 +13,7 @@ interface UserRef {
 export interface IProject extends Document {
 	_id: ObjectId;
 	projectName: string;
+	description: string;
 	users: UserRef[];
 }
 
@@ -23,6 +24,11 @@ const projectSchema = new Schema<IProject>({
 		required: true,
 		trim: true,
 		unique: [true, 'Project name must be unique']
+	},
+	description: {
+		type: String,
+		required: false,
+		trim: true
 	},
 	users: [
 		{
