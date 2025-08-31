@@ -4,7 +4,8 @@ import {
 	fetchProjects,
 	deleteProject,
 	addUser,
-	getProjectById
+	getProjectById,
+	leaveProject
 } from '../controllers/project.controller.js';
 import { isLoggedIn } from '../middlewares/isLoggedin.middleware.js';
 
@@ -15,4 +16,5 @@ projectRouter.route('/create').post(isLoggedIn, createProject);
 projectRouter.route('/delete/:id').delete(isLoggedIn, deleteProject);
 projectRouter.route('/addUser').put(isLoggedIn, addUser);
 projectRouter.route('/:id').get(isLoggedIn, getProjectById);
+projectRouter.route('/leave').put(isLoggedIn, leaveProject);
 export default projectRouter;

@@ -134,4 +134,24 @@ const getProjectById = asyncHandler(async (req: Request, res: Response) => {
 		.json(new apiResponse(200, project, 'Project fetched successfully'));
 });
 
-export { createProject, fetchProjects, deleteProject, addUser, getProjectById };
+const leaveProject = asyncHandler(async (req: Request, res: Response) => {
+	const { pid } = req.body;
+	const userId = (req as any).user._id;
+	if (typeof pid === 'undefined' || pid.trim() === '') {
+		throw new ApiError(400, 'Project ID is required');
+	}
+	const project = await Project.findByIdAndUpdate(
+		pid,
+		{ $pull: { users: userId } },
+		{ new: true }
+	);
+	if (!project) {
+		throw new ApiError(500, 'Failed to leave the project');
+	}
+	res
+		.status(200)
+		.json(new apiResponse(200, project, 'Left the project successfully'));
+});
+
+
+export { createProject, fetchProjects, deleteProject, addUser, getProjectById, leaveProject };
